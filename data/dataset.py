@@ -5,7 +5,7 @@ from torch.utils.data import Dataset
 from torchvision import transforms
 from typing import Optional, Any, List
 
-from pytorch_wrapper.augmentation import RotateImage
+from pytorch_wrapper.data.augmentation import RotateImage
 
 
 class MyDataset(Dataset):
