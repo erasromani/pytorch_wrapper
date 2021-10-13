@@ -16,7 +16,7 @@ class BagOfWords(nn.Module):
         @param emb_dim: size of the word embedding
         """
         super(BagOfWords, self).__init__()
-        self.embed = nn.Embedding(vocab_size, emb_dim, padding_idx=padding_idx)
+        self.embed = nn.Embedding(vocab_size+2, emb_dim, padding_idx=padding_idx)
         self.linear = nn.Linear(emb_dim,num_class)
         self.config = AttrDict({
             'vocab_size': vocab_size,
