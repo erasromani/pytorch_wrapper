@@ -1,7 +1,7 @@
-import dataclasses
-import numpy as np
 import os
 import gin
+import dataclasses
+import numpy as np
 import logging
 import torch
 import torch.nn.functional as F
@@ -9,6 +9,9 @@ import torch.nn.functional as F
 from torch.utils.tensorboard import SummaryWriter
 from typing import Optional, Any, Callable, List, Dict
 from collections import defaultdict
+
+from pytorch_wrapper.metrics import MetricConfig
+from pytorch_wrapper.utils import repr_torchdict
 
 logger = logging.getLogger(__name__)
 
@@ -20,14 +23,15 @@ class Trainer:
     max_epochs: int
     loss_function: Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
     device: torch.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    eval_functions: Dict[str, Callable[[torch.Tensor, torch.Tensor], torch.Tensor]] = dataclasses.field(default_factory=dict)
+    eval_metrics: List[str] = dataclasses.field(default_factory=dict)
     checkpoint_monitor: Optional[str] = None
     eval_freq: Optional[int] = None
     tb_writer: Optional[torch.utils.tensorboard.writer.SummaryWriter] = None
 
     def __post_init__(self):
+        self.eval_metrics = MetricConfig(self.eval_metrics).get_functions()
         if self.checkpoint_monitor is not None:
-            assert self.checkpoint_monitor in self.evluation_functions.keys(), "invalid checkpoint_monitor value {} entered".format(self.checkpoint_monitor)
+            assert self.checkpoint_monitor in self.eval_metrics.keys(), "invalid checkpoint_monitor value {} entered".format(self.checkpoint_monitor)
 
     @gin.configurable("Trainer.fit")
     def fit(self, model, datamodule, log_interval=None):
@@ -62,9 +66,9 @@ class Trainer:
             torch.save(checkpoint, checkpoint_path)
             logger.info('\nSaved model to ' + checkpoint_path + '.')
 
-    def train(self, train_loader, model, log_interval=None, **kwargs):
+    def train(self, train_loader, model, log_interval=None, valid_loader=None):
         if self.eval_freq is not None:
-            assert 'valid_loader' in kwargs.keys(), "valid_loader must be passed as a keyword argument"
+            assert valid_loader is not None, "valid_loader must be passed as a keyword argument"
         model.train()
         for batch_idx, batch in enumerate(train_loader):
             inputs = batch['input']
@@ -80,7 +84,7 @@ class Trainer:
             self.optimizer.step()
             if log_interval is not None and batch_idx % log_interval == 0 and batch_idx > 0:
                 logger.info('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}'.format(
-                    self.epoch, batch_idx * len(data), len(train_loader.dataset),
+                    self.epoch, batch_idx * len(target), len(train_loader.dataset),
                     100. * batch_idx / len(train_loader), loss))
                 
             if self.tb_writer is not None:
@@ -99,26 +103,30 @@ class Trainer:
         validation_loss = 0
         numels = defaultdict(int)
         metrics = defaultdict(int)
-        for data, target in valid_loader:
-            data = data.to(self.device)
+        for batch in valid_loader:
+            inputs = batch['input']
+            target = batch['target']
+            for i, input in enumerate(inputs):
+                if isinstance(input, torch.Tensor):
+                    inputs[i] = input.to(self.device)
             target = target.to(self.device)
-            output = model(data)
+            output = model(*inputs)
             loss = self.loss_function(output, target)
             numels['loss'] = loss.numel()
             validation_loss += loss.sum()
-            for metric_name, eval_function in self.eval_functions.items():
-                metric = eval_function(output, target)
+            for metric_name, eval_metric in self.eval_metrics.items():
+                metric = eval_metric(output, target)
                 numels[metric_name] += metric.numel()
                 metrics[metric_name] += metric.sum()
 
         validation_loss /= numels['loss']
-        for key, value in metrics.item():
+        for key, value in metrics.items():
             metrics[key] = value / numels[key]
 
         logger.info('\nValidation set: Average loss: {:.4f}, {}\n'.format(
-            validation_loss.item(), metrics))
+            validation_loss, repr_torchdict(metrics)))
         if self.tb_writer is not None:
             self.tb_writer.add_scalar('loss/val', validation_loss, self.iter)
-            for key, value in metrics.item():
+            for key, value in metrics.items():
                 self.tb_writer.add_scalar('{}/val'.format(key), value, self.iter)
         return metrics
