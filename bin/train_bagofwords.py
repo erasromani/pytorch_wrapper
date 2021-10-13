@@ -3,6 +3,7 @@ import torch
 import numpy as np
 import logging
 import gin
+import random
 
 from torch.utils.data import Dataset
 from torch.utils.tensorboard import SummaryWriter
@@ -17,6 +18,7 @@ from pytorch_wrapper.utils import boolean_string
 
 logger = logging.getLogger(__name__)
 
+@gin.configurable
 def newsgroup_collate_func(batch, max_sentence_length=300):
     """
     Customized function for DataLoader that dynamically pads the batch so that all 
@@ -38,9 +40,9 @@ def newsgroup_collate_func(batch, max_sentence_length=300):
     return {"input": [torch.from_numpy(np.array(data_list)), torch.LongTensor(length_list)], "target": torch.LongTensor(label_list)}
 
 @gin.configurable
-def get_datamodule(train_split=10000, max_sentence_length=300):
-    newsgroup_train = fetch_20newsgroups(subset='train')
-    newsgroup_test = fetch_20newsgroups(subset='test')
+def get_datamodule(train_split=10000, max_sentence_length=300, data_home=None):
+    newsgroup_train = fetch_20newsgroups(subset='train', data_home=data_home)
+    newsgroup_test = fetch_20newsgroups(subset='test', data_home=data_home)
 
     train_data = newsgroup_train.data[:train_split]
     train_targets = newsgroup_train.target[:train_split]
@@ -57,20 +59,30 @@ def get_datamodule(train_split=10000, max_sentence_length=300):
     train_ds = NewsGroupDataset(train_data_indices, train_targets, max_sentence_length=max_sentence_length)
     valid_ds = NewsGroupDataset(valid_data_indices, valid_targets, max_sentence_length=max_sentence_length)
     test_ds = NewsGroupDataset(test_data_indices, test_targets, max_sentence_length=max_sentence_length)
-    dm = DataModule(train_ds, valid_ds, test_ds, collate_fn=newsgroup_collate_func)
+    dm = DataModule(train_dataset=train_ds, valid_dataset=valid_ds, test_dataset=test_ds, collate_fn=newsgroup_collate_func)
     return dm
 
 @gin.configurable
-def start_experiment(output_dir, max_epochs):
-    output_dir = get_output_dir(output_dir)
+def start_experiment(output_dir, max_epochs, seed=None):
+    # set seed
+    if seed is None:
+        seed = np.random.randint(low=0, high=99999)
+    logger.info("seed = {}".format(seed))
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = True
+    random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    np.random.seed(seed)
+
     writer = SummaryWriter(log_dir=os.path.join(output_dir, 'tb_logs'))
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     logger.info("Running on {}".format(device))
 
-    dm = DataModule()
+    dm = get_datamodule()
     model = BagOfWords()
     optimizer = OptimConfig().create_optimizer(model)
-    loss_function = torch.nn.CrossEntropyLoss()  
+    loss_function = torch.nn.CrossEntropyLoss(reduction="none")  
     trainer = Trainer(optimizer, output_dir, max_epochs, loss_function, tb_writer=writer, device=device)
 
     trainer.fit(model, dm)
