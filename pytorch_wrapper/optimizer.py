@@ -4,12 +4,12 @@ import torch
 from typing import Optional
 
 
-@dataclasses.dataclass
 @gin.configurable
+@dataclasses.dataclass
 class OptimConfig:
     optimizer: str
     learning_rate: float
-    weight_decay: Optional[float] = None
+    weight_decay: float = 0
 
     def create_optimizer(self, model):
         if self.optimizer == "Adam":
