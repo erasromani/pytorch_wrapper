@@ -1,0 +1,22 @@
+# Data Config
+get_datamodule.train_split=10000
+get_datamodule.max_sentence_length=300
+DataModule.batch_size=32
+DataModule.num_workers=4
+
+# Model Config
+BagOfWords.vocab_size=10002
+BagOfWords.emb_dim=100
+BagOfWords.num_class=20
+BagOfWords.padding_idx=0
+
+# Experimental Setup Config
+start_experiment.max_epochs=10
+
+# Optimization Config
+OptimConfig.optimizer="SGD"
+OptimConfig.learning_rate=1.0
+OptimConfig.weight_decay=None
+
+# Loss Function Config
+# N/A
