@@ -1,10 +1,11 @@
+import gin
 import torch
 import dataclasses
 from torch.utils.data import Dataset, DataLoader
 from typing import Optional, Any, Callable
 
-@dataclasses.dataclass
 @gin.configurable
+@dataclasses.dataclass
 class DataModule(Dataset):
     batch_size: int
     train_dataset: torch.utils.data.dataset.Dataset
