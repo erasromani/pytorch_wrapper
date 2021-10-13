@@ -1,22 +1,35 @@
 # Data Config
 get_datamodule.train_split=10000
 get_datamodule.max_sentence_length=300
+newsgroup_collate_func.max_sentence_length=300
+get_datamodule.data_home="/scratch/ekr6072/data"
 DataModule.batch_size=32
-DataModule.num_workers=4
+DataModule.num_workers=1
+Tokenizer.name="en_core_web_sm"
+Tokenizer.exclude_punctuation=True
+Tokenizer.lowercase=True
+NLPPipeline.max_vocab_size=10000
+NLPPipeline.padding_idx=0
+NLPPipeline.unknown_idx=1
 
 # Model Config
-BagOfWords.vocab_size=10002
+BagOfWords.vocab_size=10000
 BagOfWords.emb_dim=100
 BagOfWords.num_class=20
 BagOfWords.padding_idx=0
 
 # Experimental Setup Config
 start_experiment.max_epochs=10
+start_experiment.seed=666
+Trainer.fit.log_interval=10
+Trainer.checkpoint_monitor="accuracy"
+Trainer.eval_metrics=["accuracy"]
+Trainer.eval_freq=100
 
 # Optimization Config
 OptimConfig.optimizer="SGD"
 OptimConfig.learning_rate=1.0
-OptimConfig.weight_decay=None
+OptimConfig.weight_decay=0.0
 
 # Loss Function Config
 # N/A
