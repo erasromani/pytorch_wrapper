@@ -16,6 +16,8 @@ class OptimConfig:
             optimizer = torch.optim.Adam(model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
         elif self.optimizer == "SGD":
             optimizer = torch.optim.SGD(model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
+        elif self.optimizer == "AdamW":
+            optimizer = torch.optim.AdamW(model.parameters(), lr=self.learning_rate, weight_decay=self.weight_decay)
         else:
             raise ValueError("invalid optimizer {}".format(self.optimizer))
         
