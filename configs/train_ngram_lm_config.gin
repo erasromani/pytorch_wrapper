@@ -1,0 +1,24 @@
+# Data Config
+get_datamodule.ngram_n=4
+DataModule.batch_size=8192
+DataModule.num_workers=1
+
+# Model Config
+NgramModel.ngram_n=4
+NgramModel.emb_dim=200
+
+# Experimental Setup Config
+start_experiment.max_epochs=10
+start_experiment.seed=666
+Trainer.fit.log_interval=10
+Trainer.checkpoint_monitor="accuracy"
+Trainer.eval_metrics=["accuracy"]
+Trainer.eval_freq=100
+
+# Optimization Config
+OptimConfig.optimizer="AdamW"
+OptimConfig.learning_rate=0.001
+OptimConfig.weight_decay=0.0
+
+# Loss Function Config
+# N/A
