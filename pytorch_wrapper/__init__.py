@@ -9,7 +9,7 @@ from pytorch_wrapper.utils import configure_logger
 
 # Configure paths
 DATA_DIR = os.environ.get("DATA_DIR", os.path.join(os.path.dirname(__file__), "data"))
-RESULTS_DIR = os.environ.get("RESULTS_DIR", os.path.join(os.path.dirname(__file__), "results"))
+OUTPUT_DIR = os.environ.get("OUTPUT_DIR", os.path.join(os.path.dirname(__file__), "outputs"))
 
 # Configure logger
 configure_logger('')
