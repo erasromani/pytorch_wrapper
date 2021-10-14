@@ -2,7 +2,6 @@
 get_datamodule.train_split=10000
 get_datamodule.max_sentence_length=300
 newsgroup_collate_func.max_sentence_length=300
-get_datamodule.data_home="/scratch/ekr6072/data"
 DataModule.batch_size=32
 DataModule.num_workers=1
 Tokenizer.name="en_core_web_sm"
