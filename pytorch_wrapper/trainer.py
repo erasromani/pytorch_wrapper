@@ -24,6 +24,7 @@ class Trainer:
     loss_function: Callable[[torch.Tensor, torch.Tensor], torch.Tensor]
     device: torch.device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     eval_metrics: List[str] = dataclasses.field(default_factory=dict)
+    callbacks: List[Any] = dataclasses.field(default_factory=list)
     checkpoint_monitor: Optional[str] = None
     eval_freq: Optional[int] = None
     tb_writer: Optional[torch.utils.tensorboard.writer.SummaryWriter] = None
@@ -60,19 +61,23 @@ class Trainer:
                 'optimizer': self.optimizer.state_dict(),
                 'epoch': self.epoch,
                 'iter': self.iter,
-                'model_config': model.config,
                 self.checkpoint_monitor: metrics[self.checkpoint_monitor]
             }
+            if hasattr(model, 'config'):
+                checkpoint['model_config'] = model.config
             torch.save(checkpoint, checkpoint_path)
             logger.info('\nSaved model to ' + checkpoint_path + '.')
+    
+    def run_callbacks(self, step):
+        for callback in self.callbacks:
+            getattr(callback, step)(self)
 
     def train(self, train_loader, model, log_interval=None, valid_loader=None):
         if self.eval_freq is not None:
             assert valid_loader is not None, "valid_loader must be passed as a keyword argument"
         model.train()
         for batch_idx, batch in enumerate(train_loader):
-            inputs = batch['input']
-            target = batch['target']
+            inputs, target = self._process_inputs(batch)
             for i, input in enumerate(inputs):
                 if isinstance(input, torch.Tensor):
                     inputs[i] = input.to(self.device)
@@ -97,6 +102,17 @@ class Trainer:
 
             self.iter += 1
 
+    def _process_inputs(self, batch):
+        if isinstance(batch, dict):
+            inputs = batch['input']
+            target = batch['target']
+        elif isinstance(batch, (list, tuple)) and len(batch) > 1:
+            input = batch[:-1]
+            target = batch[-1]
+        else:
+            raise ValueError("invalid data loader output format")
+        return input, target
+
     @torch.no_grad()
     def validate(self, valid_loader, model):
         model.eval()
@@ -104,8 +120,7 @@ class Trainer:
         numels = defaultdict(int)
         metrics = defaultdict(int)
         for batch in valid_loader:
-            inputs = batch['input']
-            target = batch['target']
+            inputs, target = self._process_inputs(batch)
             for i, input in enumerate(inputs):
                 if isinstance(input, torch.Tensor):
                     inputs[i] = input.to(self.device)

@@ -1,16 +1,16 @@
 import os
 import datetime
-import spacy
-import string
 import dataclasses
 import gin
+import random
 import argh
 import logging
 import sys
+import torch
+import numpy as np
 
 from pathlib import Path
 from contextlib import contextmanager
-from collections import Counter
 from logging import handlers
 
 logger = logging.getLogger(__name__)
@@ -36,6 +36,29 @@ def split_dataset(split):
 
 def show_sample():
     pass
+
+def load_text_data(path, split_by=None):
+    with open(path, "r") as f:
+        data = f.read()
+    if split_by is None:
+        return data
+    else:
+        return data.split(split_by)
+
+def set_seed(seed=None):
+    # set seed
+    if seed is None:
+        seed = np.random.randint(low=0, high=99999)
+    logger.info("seed = {}".format(seed))
+    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = True
+    random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    np.random.seed(seed)
+
+def get_device(index=0):
+    return torch.device("cuda:{}".format(index) if torch.cuda.is_available() else "cpu")
 
 def repr_torchdict(torchdict):
     for i, (key, value) in enumerate(torchdict.items()):
@@ -152,81 +175,3 @@ def configure_logger(name='',
     logger.info("Logging configured!")
 
     return logger
-
-
-@gin.configurable
-@dataclasses.dataclass
-class Tokenizer:
-    name: str = 'en_core_web_sm'
-    exclude_punctuation: bool = False
-    lowercase: bool = False
-
-    def __post_init__(self):
-        self.nlp = spacy.load('en_core_web_sm')
-        for name in self.nlp.component_names:
-            self.nlp.remove_pipe(name)
-        if self.exclude_punctuation:
-            self.punctuations = string.punctuation
-
-    def tokenize(self, sent):
-        tokens = self.nlp(sent)
-        if self.exclude_punctuation and self.lowercase:
-            return [token.text.lower() for token in tokens if (token.text not in self.punctuations)]
-        elif self.exclude_punctuation and not self.lowercase:
-            return [token.text for token in tokens if (token.text not in self.punctuations)]
-        elif not self.exclude_punctuation and self.lowercase:
-            return [token.text.lower() for token in tokens]
-        elif not self.exclude_punctuation and not self.lowercase:
-            return [token.text for token in tokens]
-
-    def __call__(self, dataset):
-        token_dataset = []
-        all_tokens = []
-
-        for sample in dataset:
-            tokens = self.tokenize(sample)
-            token_dataset.append(tokens)
-            all_tokens += tokens
-
-        return token_dataset, all_tokens
-
-
-@gin.configurable
-@dataclasses.dataclass
-class NLPPipeline:
-    max_vocab_size: int = 10000
-    padding_idx: int = 0
-    unknown_idx: int = 1
-
-    def __post_init__(self):
-        self.tokenizer = Tokenizer()
-    
-    def build_vocab(self, all_tokens):
-        # Returns:
-        # id2token: list of tokens, where id2token[i] returns token that corresponds to token i
-        # token2id: dictionary where keys represent tokens and corresponding values represent indices
-        token_counter = Counter(all_tokens)
-        vocab, count = zip(*token_counter.most_common(self.max_vocab_size))
-        id2token = list(vocab)
-        token2id = dict(zip(vocab, range(2,2+len(vocab)))) 
-        id2token = ['<pad>', '<unk>'] + id2token
-        token2id['<pad>'] = self.padding_idx
-        token2id['<unk>'] = self.unknown_idx
-        return token2id, id2token
-    
-    def token2index(self, tokens_data):
-        indices_data = []
-        for tokens in tokens_data:
-            index_list = [self.token2id[token] if token in self.token2id else self.unknown_idx for token in tokens]
-            indices_data.append(index_list)
-        return indices_data
-
-    def __call__(self, train_data, valid_data, test_data):
-        train_data_tokens, all_train_tokens = self.tokenizer(train_data)
-        valid_data_tokens, _ = self.tokenizer(valid_data)
-        test_data_tokens, _  = self.tokenizer(test_data)
-        self.token2id, self.id2token = self.build_vocab(all_train_tokens)
-        train_data_indices = self.token2index(train_data_tokens)
-        valid_data_indices = self.token2index(valid_data_tokens)
-        test_data_indices  = self.token2index(test_data_tokens)
-        return train_data_indices, valid_data_indices, test_data_indices
