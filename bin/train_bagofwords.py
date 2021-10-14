@@ -9,12 +9,13 @@ from torch.utils.data import Dataset
 from torch.utils.tensorboard import SummaryWriter
 from sklearn.datasets import fetch_20newsgroups
 
+from pytorch_wrapper import DATA_DIR
 from pytorch_wrapper.data import DataModule
+from pytorch_wrapper.data.processing import NLPPipeline
 from pytorch_wrapper.models.nlp_models import BagOfWords
 from pytorch_wrapper.trainer import Trainer
-from pytorch_wrapper.utils import get_output_dir, NLPPipeline, gin_wrap
+from pytorch_wrapper.utils import get_output_dir, gin_wrap, set_seed
 from pytorch_wrapper.optimizer import OptimConfig
-from pytorch_wrapper.utils import boolean_string
 
 logger = logging.getLogger(__name__)
 
@@ -40,9 +41,9 @@ def newsgroup_collate_func(batch, max_sentence_length=300):
     return {"input": [torch.from_numpy(np.array(data_list)), torch.LongTensor(length_list)], "target": torch.LongTensor(label_list)}
 
 @gin.configurable
-def get_datamodule(train_split=10000, max_sentence_length=300, data_home=None):
-    newsgroup_train = fetch_20newsgroups(subset='train', data_home=data_home)
-    newsgroup_test = fetch_20newsgroups(subset='test', data_home=data_home)
+def get_datamodule(train_split=10000, max_sentence_length=300):
+    newsgroup_train = fetch_20newsgroups(subset='train', data_home=DATA_DIR)
+    newsgroup_test = fetch_20newsgroups(subset='test', data_home=DATA_DIR)
 
     train_data = newsgroup_train.data[:train_split]
     train_targets = newsgroup_train.target[:train_split]
@@ -64,17 +65,7 @@ def get_datamodule(train_split=10000, max_sentence_length=300, data_home=None):
 
 @gin.configurable
 def start_experiment(output_dir, max_epochs, seed=None):
-    # set seed
-    if seed is None:
-        seed = np.random.randint(low=0, high=99999)
-    logger.info("seed = {}".format(seed))
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = True
-    random.seed(seed)
-    torch.manual_seed(seed)
-    torch.cuda.manual_seed(seed)
-    np.random.seed(seed)
-
+    set_seed(seed=seed)
     writer = SummaryWriter(log_dir=os.path.join(output_dir, 'tb_logs'))
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     logger.info("Running on {}".format(device))
