@@ -79,12 +79,14 @@ class NLPPipeline:
             indices_data.append(index_list)
         return indices_data
 
-    def __call__(self, train_data, valid_data, test_data):
+    def __call__(self, train_data, valid_data, test_data=None):
         train_data_tokens, all_train_tokens = self.tokenizer(train_data)
         valid_data_tokens, _ = self.tokenizer(valid_data)
-        test_data_tokens, _  = self.tokenizer(test_data)
         self.token2id, self.id2token = self.build_vocab(all_train_tokens)
         train_data_indices = self.token2index(train_data_tokens)
         valid_data_indices = self.token2index(valid_data_tokens)
-        test_data_indices  = self.token2index(test_data_tokens)
-        return train_data_indices, valid_data_indices, test_data_indices
+        if test_data is not None:
+            test_data_tokens, _  = self.tokenizer(test_data)
+            test_data_indices  = self.token2index(test_data_tokens)
+            return train_data_indices, valid_data_indices, test_data_indices
+        return train_data_indices, valid_data_indices

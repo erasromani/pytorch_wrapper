@@ -264,6 +264,64 @@ class RNNLM(nnModule):
 
 
 @gin.configurable
+class LSTMClassifier(nnModule):
+    def __init__(self, input_dim, embedding_dim, hidden_dim, output_dim, padding_idx=0): 
+        super(LSTMClassifier, self).__init__()
+        self.embedding = nn.Embedding(input_dim, embedding_dim)
+        self.rnn = nn.LSTM(embedding_dim, hidden_dim, batch_first=True)
+        self.fc = nn.Linear(hidden_dim, output_dim)
+        self.input_dim = input_dim
+        self.padding_idx = padding_idx
+        
+    def forward(self, text):
+        embedded = self.embedding(text)        
+        output, (hn, cn) = self.rnn(embedded)
+        x = F.dropout(hn[-1], training = self.training)
+        return self.fc(x)
+    
+    def training_step(self, batch, batch_idx):
+        data, target = batch
+        logits = self(data)
+        loss = F.cross_entropy(
+            logits,
+            target,
+            reduction='mean',
+            ignore_index=self.padding_idx,
+        )
+        return loss
+            
+    def validation_step(self, batch, batch_idx):
+        data, target = batch
+        logits = self(data)
+        loss = F.cross_entropy(
+            logits,
+            target,
+            reduction='sum',
+            ignore_index=self.padding_idx,
+        )
+
+        # Only count non-padding tokens
+        valid_indices = target != self.padding_idx
+        self.n_examples += valid_indices.sum()
+        preds = logits.argmax(-1)
+        raw_correct_preds = (preds == target)
+        correct = (raw_correct_preds & valid_indices).sum()
+        return {'loss': loss, 'correct': correct}
+        
+    def on_validation_start(self, trainer):
+        self.logs = []
+        self.n_examples = 0
+
+    def on_validation_batch_end(self, trainer, outputs, batch, batch_idx):
+        self.logs.append(outputs)
+
+    def on_validation_end(self, trainer):
+        loss = torch.stack([log['loss'] for log in self.logs]).sum() / self.n_examples
+        accuracy = torch.stack([log['correct'] for log in self.logs]).float().sum() / self.n_examples
+        return {'loss': loss, 'accuracy': accuracy}
+
+
+@gin.configurable
 class BagOfWords(nnModule):
     """
     BagOfWords classification model
