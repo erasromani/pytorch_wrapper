@@ -22,7 +22,6 @@ start_experiment.max_epochs=10
 start_experiment.seed=666
 Trainer.fit.log_interval=10
 Trainer.checkpoint_monitor="accuracy"
-Trainer.eval_metrics=["accuracy"]
 Trainer.eval_freq=100
 
 # Optimization Config

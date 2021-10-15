@@ -1,0 +1,24 @@
+# Data Config
+DataModule.batch_size=32
+DataModule.num_workers=1
+
+# Model Config
+ModelConfig.channels=[64, 64, 64, 128, 128, 128, 256, 256, 256]
+ModelConfig.kernels=[5, 3, 3, 3, 3, 3, 3, 3, 3]
+ModelConfig.strides=[2, 1, 1, 2, 1, 1, 2, 1, 1]
+ModelConfig.senet=False
+
+# Experimental Setup Config
+start_experiment.max_epochs=10
+start_experiment.seed=666
+Trainer.fit.log_interval=None
+Trainer.checkpoint_monitor="accuracy"
+Trainer.eval_freq=100
+
+# Optimization Config
+OptimConfig.optimizer="Adam"
+OptimConfig.learning_rate=1e-3
+OptimConfig.weight_decay=1e-4
+
+# Loss Function Config
+# N/A

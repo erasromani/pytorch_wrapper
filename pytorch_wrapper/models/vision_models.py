@@ -1,9 +1,12 @@
 import math
 import torch
+import gin
 import torch.nn as nn
 import torch.nn.functional as F
 import dataclasses
 from typing import Tuple, List
+
+from pytorch_wrapper.models import nnModule
 
 def conv_layer(in_channels, out_channels, kernel_size, stride=1):
     assert stride in (1, 2)
@@ -67,6 +70,7 @@ class SEResBlock(nn.Module):
         return x + out * seout[..., None, None]
 
 
+@gin.configurable
 @dataclasses.dataclass
 class ModelConfig:
     channels: List[int]
@@ -87,12 +91,11 @@ class ModelConfig:
         assert len(self.strides) == len(self.kernels) == len(self.senet)
 
 
-class Net(nn.Module):
+class ImageClassificationNet(nnModule):
     def __init__(self, config):
-        super(Net, self).__init__()
+        super(ImageClassificationNet, self).__init__()
         self.config = config
 
-        # conv_layers = [nn.Conv2d(config.input_size[0], config.channels[0], 7, stride=2), nn.MaxPool2d(3, stride=2)]
         conv_layers = []
         if config.senet[0]:
             conv_layers.append(SEResBlock(config.input_size[0], config.channels[0], config.kernels[0], stride=config.strides[0], r=config.r))
@@ -120,3 +123,30 @@ class Net(nn.Module):
         x = self.conv(x)
         x = self.linear(x)
         return F.log_softmax(x,dim=1)
+
+    def training_step(self, batch, batch_idx):
+        data, target = batch
+        output = self(data)
+        loss = F.nll_loss(output, target)
+        return loss
+            
+    def validation_step(self, batch, batch_idx):
+        data, target = batch
+        output = self(data)
+        loss = F.nll_loss(output, target, reduction="sum")
+        pred = output.max(1, keepdim=True)[1]
+        correct = pred.eq(target.view_as(pred)).sum()
+        self.n_examples += len(data)
+        return {'loss': loss, 'correct': correct}
+
+    def on_validation_start(self, trainer):
+        self.logs = []
+        self.n_examples = 0
+
+    def on_validation_batch_end(self, trainer, outputs, batch, batch_idx):
+        self.logs.append(outputs)
+
+    def on_validation_end(self, trainer):
+        loss = torch.stack([log['loss'] for log in self.logs]).sum() / self.n_examples
+        accuracy = torch.stack([log['correct'] for log in self.logs]).float().sum() / self.n_examples
+        return {'loss': loss, 'accuracy': accuracy}
