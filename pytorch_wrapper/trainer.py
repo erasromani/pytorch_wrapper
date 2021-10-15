@@ -28,8 +28,6 @@ class Trainer:
     tb_writer: Optional[torch.utils.tensorboard.writer.SummaryWriter] = None
 
     def __post_init__(self):
-        # if self.checkpoint_monitor is not None:
-        #     assert self.checkpoint_monitor in self.eval_metrics.keys(), "invalid checkpoint_monitor value {} entered".format(self.checkpoint_monitor)
         self.training = None
     
     @gin.configurable("Trainer.fit")
@@ -51,8 +49,9 @@ class Trainer:
                 self.save_checkpoint(model, metrics)
             self.on_epoch_end(model)
 
-        self.tb_writer.flush()
-        self.tb_writer.close()
+        if self.tb_writer is not None:
+            self.tb_writer.flush()
+            self.tb_writer.close()
         self.on_fit_end(model)
 
     def save_checkpoint(self, model, metrics):
