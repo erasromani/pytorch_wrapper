@@ -38,4 +38,7 @@ class DataModule(Dataset):
                             collate_fn=self.collate_fn)
     
     def get_loaders(self):
-        return self.train_dataloader(), self.valid_dataloader(), self.test_dataloader()
+        if self.test_data is not None:
+            return self.train_dataloader(), self.valid_dataloader(), self.test_dataloader()
+        else:
+            return self.train_dataloader(), self.valid_dataloader()
