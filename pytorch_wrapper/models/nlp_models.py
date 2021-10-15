@@ -5,6 +5,7 @@ from torch import nn
 import torch.nn.functional as F
 from attrdict import AttrDict
 
+from pytorch_wrapper.models import nnModule
 
 def sample_from_distribution(dist):
     tokens, p = zip(*dist.items())
@@ -139,7 +140,7 @@ class NgramTrie:
 
 
 @gin.configurable
-class NgramModel(nn.Module):
+class NgramLM(nnModule):
     def __init__(self, vocab_size, ngram_n, emb_dim):
         super().__init__()
         self.emb_dim = emb_dim
@@ -158,10 +159,37 @@ class NgramModel(nn.Module):
         out = self.out_embed(out)
         return out
 
+    def training_step(self, batch, batch_idx):
+        x, y = batch
+        pred = self(x)
+        loss = F.cross_entropy(pred, y, reduction='mean')
+        return loss
+            
+    def validation_step(self, batch, batch_idx):
+        x, y = batch
+        pred = self(x)
+        loss = F.cross_entropy(pred, y, reduction='sum')
+        pred_indices = pred.max(dim=1).indices
+        correct = (pred_indices==y).float().sum()
+        self.n_examples += y.size(0)
+        return {'loss': loss, 'correct': correct}
+        
+    def on_validation_start(self, trainer):
+        self.logs = []
+        self.n_examples = 0
+
+    def on_validation_batch_end(self, trainer, outputs, batch, batch_idx):
+        self.logs.append(outputs)
+
+    def on_validation_end(self, trainer):
+        loss = torch.stack([log['loss'] for log in self.logs]).sum() / self.n_examples
+        accuracy = torch.stack([log['correct'] for log in self.logs]).float().sum() / self.n_examples
+        return {'loss': loss, 'accuracy': accuracy}
+
 
 @gin.configurable
-class RNNModel(nn.Module):
-    def __init__(self, vocab_size, emb_dim, num_layers, dropout_p=0.5):
+class RNNLM(nnModule):
+    def __init__(self, vocab_size, emb_dim, num_layers, dropout_p=0.5, padding_idx=0):
         super().__init__()
         self.emb_dim = emb_dim
         self.in_embed = nn.Embedding(vocab_size, emb_dim)
@@ -174,6 +202,8 @@ class RNNModel(nn.Module):
         )
         self.dropout = nn.Dropout(dropout_p)
         self.out_embed = nn.Linear(emb_dim, vocab_size)
+        self.vocab_size = vocab_size
+        self.padding_idx = padding_idx
 
         # Share weights between embeddings
         self.out_embed.weight = self.in_embed.weight
@@ -185,9 +215,56 @@ class RNNModel(nn.Module):
         out = self.out_embed(self.dropout(out))
         return out
 
+    def training_step(self, batch, batch_idx):
+        data = batch['arr'][:, :-1]
+        target = batch['arr'][:, 1:]
+        logits = self(data)
+        flattened_logits = logits.reshape(-1, self.vocab_size)
+        flattened_labels = target.reshape(-1)
+        loss = F.cross_entropy(
+            flattened_logits,
+            flattened_labels,
+            reduction='mean',
+            ignore_index=self.padding_idx,
+        )
+        return loss
+            
+    def validation_step(self, batch, batch_idx):
+        data = batch['arr'][:, :-1]
+        target = batch['arr'][:, 1:]
+        logits = self(data)
+        flattened_logits = logits.reshape(-1, self.vocab_size)
+        flattened_labels = target.reshape(-1)
+        loss = F.cross_entropy(
+            flattened_logits,
+            flattened_labels,
+            reduction='sum',
+            ignore_index=self.padding_idx,
+        )
+
+        # Only count non-padding tokens
+        valid_indices = flattened_labels != self.padding_idx
+        self.n_examples += valid_indices.sum()
+        preds = flattened_logits.argmax(-1)
+        raw_correct_preds = (preds == flattened_labels)
+        correct = (raw_correct_preds & valid_indices).sum()
+        return {'loss': loss, 'correct': correct}
+        
+    def on_validation_start(self, trainer):
+        self.logs = []
+        self.n_examples = 0
+
+    def on_validation_batch_end(self, trainer, outputs, batch, batch_idx):
+        self.logs.append(outputs)
+
+    def on_validation_end(self, trainer):
+        loss = torch.stack([log['loss'] for log in self.logs]).sum() / self.n_examples
+        accuracy = torch.stack([log['correct'] for log in self.logs]).float().sum() / self.n_examples
+        return {'loss': loss, 'accuracy': accuracy}
+
 
 @gin.configurable
-class BagOfWords(nn.Module):
+class BagOfWords(nnModule):
     """
     BagOfWords classification model
     """
@@ -217,3 +294,31 @@ class BagOfWords(nn.Module):
         out /= length.view(length.size()[0],1).expand_as(out).float()     
         out = self.linear(out.float())
         return out
+
+    def training_step(self, batch, batch_idx):
+        data, length, target = batch
+        output = self(data, length)
+        loss = torch.nn.CrossEntropyLoss(reduction="mean")(output, target)
+        return loss
+            
+    def validation_step(self, batch, batch_idx):
+        data, length, target = batch
+        output = self(data, length)
+        loss = torch.nn.CrossEntropyLoss(reduction="sum")(output, target)
+        output = F.softmax(output, dim=1)
+        predicted = output.max(1, keepdim=True)[1]                
+        self.n_examples += target.size(0)
+        correct = predicted.eq(target.view_as(predicted)).sum()
+        return {'loss': loss, 'correct': correct}
+        
+    def on_validation_start(self, trainer):
+        self.logs = []
+        self.n_examples = 0
+
+    def on_validation_batch_end(self, trainer, outputs, batch, batch_idx):
+        self.logs.append(outputs)
+
+    def on_validation_end(self, trainer):
+        loss = torch.stack([log['loss'] for log in self.logs]).sum() / self.n_examples
+        accuracy = torch.stack([log['correct'] for log in self.logs]).float().sum() / self.n_examples
+        return {'loss': loss, 'accuracy': accuracy}

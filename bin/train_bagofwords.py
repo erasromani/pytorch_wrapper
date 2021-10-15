@@ -38,7 +38,7 @@ def newsgroup_collate_func(batch, max_sentence_length=300):
                                 pad_width=((0, max_sentence_length-datum[1])), 
                                 mode="constant", constant_values=0)
         data_list.append(padded_vec)
-    return {"input": [torch.from_numpy(np.array(data_list)), torch.LongTensor(length_list)], "target": torch.LongTensor(label_list)}
+    return [torch.from_numpy(np.array(data_list)), torch.LongTensor(length_list), torch.LongTensor(label_list)]
 
 @gin.configurable
 def get_datamodule(train_split=10000, max_sentence_length=300):
@@ -73,8 +73,7 @@ def start_experiment(output_dir, max_epochs, seed=None):
     dm = get_datamodule()
     model = BagOfWords()
     optimizer = OptimConfig().create_optimizer(model)
-    loss_function = torch.nn.CrossEntropyLoss(reduction="none")  
-    trainer = Trainer(optimizer, output_dir, max_epochs, loss_function, tb_writer=writer, device=device)
+    trainer = Trainer(optimizer, output_dir, max_epochs, tb_writer=writer, device=device)
 
     trainer.fit(model, dm)
 

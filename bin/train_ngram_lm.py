@@ -13,7 +13,7 @@ from tqdm import trange, tqdm
 
 from pytorch_wrapper.utils import get_device, gin_wrap, set_seed
 from pytorch_wrapper.data import DataModule
-from pytorch_wrapper.models.nlp_models import NgramModel
+from pytorch_wrapper.models.nlp_models import NgramLM
 from pytorch_wrapper.trainer import Trainer
 from pytorch_wrapper.optimizer import OptimConfig
 
@@ -77,10 +77,9 @@ def start_experiment(output_dir, max_epochs, seed=None):
     device = get_device()
     dm, vocab = get_datamodule()
 
-    model = NgramModel(vocab_size=len(vocab))
+    model = NgramLM(vocab_size=len(vocab))
     optimizer = OptimConfig().create_optimizer(model)
-    loss_function = torch.nn.CrossEntropyLoss(reduction="none")  
-    trainer = Trainer(optimizer, output_dir, max_epochs, loss_function, tb_writer=writer, device=device)
+    trainer = Trainer(optimizer, output_dir, max_epochs, tb_writer=writer, device=device)
 
     trainer.fit(model, dm)
 

@@ -6,13 +6,15 @@ import torch
 from torch.utils.data import Dataset
 from torch.utils.tensorboard import SummaryWriter
 
-from pytorch_wrapper.models.nlp_models import RNNModel
+from pytorch_wrapper.models.nlp_models import RNNLM
 from pytorch_wrapper.data.processing import NLPPipeline
 from pytorch_wrapper.data import DataModule
 from pytorch_wrapper.optimizer import OptimConfig
 from pytorch_wrapper.trainer import Trainer
 from pytorch_wrapper import DATA_DIR
 from pytorch_wrapper.utils import load_text_data, set_seed, get_device, gin_wrap
+from pytorch_wrapper.callbacks.callbacks import Callback
+
 
 @gin.configurable
 def get_datamodule():
@@ -36,10 +38,9 @@ def start_experiment(output_dir, max_epochs, seed=None):
     device = get_device()
     dm, nlp = get_datamodule()
 
-    model = RNNModel(vocab_size=len(nlp.id2token))
+    model = RNNLM(vocab_size=len(nlp.id2token), padding_idx=nlp.padding_idx)
     optimizer = OptimConfig().create_optimizer(model)
-    loss_function = torch.nn.CrossEntropyLoss(reduction="none", ignore_index=nlp.padding_idx)  
-    trainer = Trainer(optimizer, output_dir, max_epochs, loss_function, tb_writer=writer, device=device)
+    trainer = Trainer(optimizer, output_dir, max_epochs, tb_writer=writer, device=device)
 
     trainer.fit(model, dm)
     

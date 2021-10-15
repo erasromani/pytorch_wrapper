@@ -4,15 +4,14 @@ DataModule.num_workers=1
 NLPPipeline.max_vocab_size=10000
 
 # Model Config
-RNNModel.emb_dim=200
-RNNModel.num_layers=4
+RNNLM.emb_dim=200
+RNNLM.num_layers=4
 
 # Experimental Setup Config
 start_experiment.max_epochs=20
 start_experiment.seed=666
 Trainer.fit.log_interval=20
 Trainer.checkpoint_monitor="accuracy"
-Trainer.eval_metrics=["accuracy"]
 Trainer.eval_freq=100
 
 # Optimization Config

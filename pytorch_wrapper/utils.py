@@ -63,9 +63,9 @@ def get_device(index=0):
 def repr_torchdict(torchdict):
     for i, (key, value) in enumerate(torchdict.items()):
         if i == 0:
-            out = "{}: {:.4f}".format(key, value) 
+            out = "{}={:.4f}".format(key, value) 
         else:
-            out = "{}, {}: {:.4f}".format(out, key, value)
+            out = "{}, {}={:.4f}".format(out, key, value)
     return out    
 
 class Fork(object):
